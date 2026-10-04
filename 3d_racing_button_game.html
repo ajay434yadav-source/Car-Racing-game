@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>3D Racing Button Game</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#80d8ff;font-family:Arial,sans-serif}
+#ui{position:fixed;z-index:20;top:10px;left:10px;right:10px;text-align:center}
+#status{display:inline-block;background:#fffffff0;padding:10px 16px;border-radius:16px;font-weight:800;box-shadow:0 3px 12px #0004}
+#buttons{position:fixed;z-index:30;bottom:18px;left:0;right:0;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:0 10px}
+button{border:0;border-radius:18px;padding:15px 18px;background:#111;color:#fff;font-size:18px;font-weight:900;box-shadow:0 5px 12px #0005;touch-action:manipulation}
+button:active{transform:scale(.94);background:#333}
+#go{background:#0a8f45}#stop{background:#c62828}#left,#right{background:#1565c0}
+#speed{background:#ef8b00}
+</style>
+</head>
+<body>
+<div id="ui"><div id="status">🏁 बटन दबाकर कार चलाएँ</div></div>
+<div id="buttons">
+<button id="left">⬅️ बाएँ</button>
+<button id="go">🏎️ चलाओ</button>
+<button id="stop">🛑 रुको</button>
+<button id="right">दाएँ ➡️</button>
+<button id="speed">⚡ तेज</button>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x82d7ff);
+scene.fog=new THREE.Fog(0x82d7ff,45,220);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,500);
+camera.position.set(0,7,12);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x557755,2));
+const sun=new THREE.DirectionalLight(0xffffff,3);sun.position.set(30,60,20);sun.castShadow=true;scene.add(sun);
+
+const road=new THREE.Mesh(new THREE.PlaneGeometry(18,600),new THREE.MeshStandardMaterial({color:0x454545}));
+road.rotation.x=-Math.PI/2;road.position.z=-150;scene.add(road);
+const grass=new THREE.Mesh(new THREE.PlaneGeometry(180,600),new THREE.MeshStandardMaterial({color:0x58b64d}));
+grass.rotation.x=-Math.PI/2;grass.position.y=-.05;grass.position.z=-150;scene.add(grass);
+for(let z=0;z>-600;z-=10){let m=new THREE.Mesh(new THREE.BoxGeometry(.18,.03,5),new THREE.MeshBasicMaterial({color:0xffffff}));m.position.set(0,.03,z);scene.add(m)}
+
+function makeCar(color,s=.8){
+ const g=new THREE.Group();
+ let b=new THREE.Mesh(new THREE.BoxGeometry(2.5,.65,4),new THREE.MeshStandardMaterial({color}));b.position.y=.75;b.castShadow=true;g.add(b);
+ let top=new THREE.Mesh(new THREE.BoxGeometry(1.65,.55,1.8),new THREE.MeshStandardMaterial({color:0x26323d}));top.position.set(0,1.25,-.15);g.add(top);
+ for(const x of [-1.35,1.35])for(const z of [-1.35,1.35]){
+  let w=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.28,18),new THREE.MeshStandardMaterial({color:0x111111}));
+  w.rotation.z=Math.PI/2;w.position.set(x,.48,z);g.add(w)
+ }
+ g.scale.setScalar(s);return g;
+}
+const player=makeCar(0xff2028,1);player.position.set(0,0,8);scene.add(player);
+for(let i=0;i<32;i++){let c=makeCar([0x1976d2,0xffc107,0x7b1fa2,0x00a884,0xffffff][i%5],.8);c.position.set([-5,-2.5,2.5,5][i%4],0,-18-i*15);c.userData.speed=.02+(i%4)*.008;scene.add(c)}
+for(let i=0;i<55;i++){for(const side of [-12,12]){let g=new THREE.Group();let t=new THREE.Mesh(new THREE.CylinderGeometry(.22,.3,2,8),new THREE.MeshStandardMaterial({color:0x70452a}));t.position.y=1;let c=new THREE.Mesh(new THREE.SphereGeometry(1.45,10,10),new THREE.MeshStandardMaterial({color:0x168b39}));c.position.y=2.5;g.add(t,c);g.position.set(side,0,-i*10-5);scene.add(g)}}}
+
+let moving=false,turn=0,fast=false;
+const status=document.getElementById('status');
+function say(t){status.textContent=t}
+function move(){moving=true;say('🏎️ कार चल रही है')}
+function stop(){moving=false;say('🛑 कार रुक गई')}
+function steer(n){turn=n;say(n<0?'⬅️ बाएं मुड़ रही है':'➡️ दाएं मुड़ रही है');setTimeout(()=>turn=0,700)}
+document.getElementById('go').onclick=move;
+document.getElementById('stop').onclick=stop;
+document.getElementById('left').onclick=()=>steer(-1);
+document.getElementById('right').onclick=()=>steer(1);
+document.getElementById('speed').onclick=()=>{fast=!fast;say(fast?'⚡ तेज स्पीड ON':'🐢 सामान्य स्पीड')};
+
+let last=performance.now();
+function animate(now){
+ requestAnimationFrame(animate);let dt=Math.min((now-last)/1000,.05);last=now;
+ let speed=moving?(fast?20:9):0;
+ player.position.z-=speed*dt;
+ player.position.x+=turn*dt*7;
+ player.position.x=Math.max(-6,Math.min(6,player.position.x));
+ player.rotation.y=-turn*.12;
+ camera.position.x+=(player.position.x*.45-camera.position.x)*.08;
+ camera.position.z+=(player.position.z+11-camera.position.z)*.08;
+ camera.lookAt(player.position.x,1,player.position.z-9);
+ scene.children.forEach(o=>{if(o.userData&&o.userData.speed)o.position.z+=o.userData.speed});
+ renderer.render(scene,camera);
+}
+animate(performance.now());
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
